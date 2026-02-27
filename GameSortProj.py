@@ -55,7 +55,9 @@ def predict_genre(user_input):
 
     # Map the predicted index to a genre label
     predicted_genre = genre_mapping[predicted_genre_idx]
-    return predicted_genre      
+    return predicted_genre   
+
+# Main function
 if __name__ == "__main__":
     print("\n Model ready. Type a keyword or description.")
     while True:
