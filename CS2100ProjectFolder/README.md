@@ -1,6 +1,6 @@
 # Game Genre Classification
 
-# Created-by:
+Created-by:
 Hannah Dees and Sara Cogoli
 Course: CS 2100
 
