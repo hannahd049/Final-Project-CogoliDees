@@ -2,7 +2,9 @@
 import pandas as pd
 import re
 import sklearn
-from transformers import BertTokenizer
+import torch
+from torch.utils.data import Dataset
+from transformers import BertTokenizer, BertForSequenceClassification
 
 # Load the dataset
 df = pd.read_csv("steam_games.csv")
@@ -47,28 +49,48 @@ class GameDataSet(Dataset):
                                 truncation=True, 
                                 return_tensors="pt")
 
-        return 
-            #TODOIDKHOW TO RETURN THIS
-
+        return {
+            "input_ids": encoding["input_ids"].squeeze(),
+            "attention_mask": encoding["attention_mask"].squeeze(),
+            "labels": label
+}
     def __len__(self):
         return len(self.df)
-    
+#model
+num_labels=df["primary_genre"].nunique()
+model=BertForSequenceClassification.from_pretrained(
+    "bert-base-uncased",
+    num_labels=num_labels
+)
 
-#user interaction search function
+genre_mapping = dict(
+    enumerate(df["primary_genre"].astype("category").cat.categories)
+)
+#prediction function
 def predict_genre(user_input):
-    # Preprocess the input
+    # preprocess the input
     input_text = user_input.lower()
     input_text = re.sub(r'[^\w\s]', '', input_text)
+    inputs =tokenizer(
+        input_text,
+        return_tensors="pt",
+        truncation=True,
+        padding=True,
+        max_length=260
+        
+    )
+    with torch.no_grad():
+        outputs = model(**inputs)
+        logits = outputs.logits
+        predicted_genre_idx = torch.argmax(logits, dim=1).item()
 
-    # Tokenize the input
+    return genre_mapping[predicted_genre_idx]
+
+# Tokenize the input
     inputs = tokenizer(input_text, return_tensors="pt", truncation=True, padding=True)
 
-    # Predict the genre using the model
-    
-
-    # Map the predicted index to a genre label
-    predicted_genre = genre_mapping[predicted_genre_idx]
-    return predicted_genre      
+   
+#user interaction
 if __name__ == "__main__":
     print("\n Model ready. Type a keyword or description.")
     while True:
