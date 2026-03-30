@@ -20,23 +20,23 @@ The overall goal for this project is to create a keyword-driven search tool that
 - The system retrieves and displays games that match the predicted genre
 
 # Key Techniques:
-# Text Processing
+-Text Processing
    - Combined multiple text fields into a single input string
    - Cleaned and normalized text
    - Tokenized text using BERT tokenizer
-# Feature Extraction
+-Feature Extraction
    - Used BERT embeddings to generate contextual representations of each game
    - Explored Word2Vec as an alternate feature extraction method.
    - Compared different embedding strategies to see the effect on classification accuracy
-# Classification
+-Classification
    - Trained and supervised a machine learning model to predict the primary game genre
    - Evaluated multiple classifiers
    - Used BERT-based embeddings to improve prediction quality
    - Measured performance accuracy, precision, and recall
-# Clustering
+-Clustering
    - Compared cluster grouping to actual genres to analyze model behavior
    - Used clustering to support keyword-based game recommendations
-# Keyword Search
+-Keyword Search
    - Implemented a simple keyword search tool
    - Mapped user keywords to the closest game genre using the classifier
    - Returned a list of games whose mebeddings are most similar to the user's input
