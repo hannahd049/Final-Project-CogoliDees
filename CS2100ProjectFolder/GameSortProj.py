@@ -33,9 +33,22 @@ def process_data(texts):
 #Dataset Class
 class GameDataSet(Dataset):
     def __init__(self,df,tokenizer):
-        
+        self.df=df
+        self.tokenizer=tokenizer
+        self.texts=df["full_text"].tolist()
+        self.labels=df["primary_genre"].tolist()
 
     def __getitem__(self,idx):
+        text=self.texts[idx]
+        label=self.labels[idx]
+        encoding=self.tokenizer(text, 
+                                padding="max_length", 
+                                max_length=260, 
+                                truncation=True, 
+                                return_tensors="pt")
+
+        return 
+            #TODOIDKHOW TO RETURN THIS
 
     def __len__(self):
         return len(self.df)
