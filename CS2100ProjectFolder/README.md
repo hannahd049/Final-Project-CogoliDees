@@ -48,7 +48,7 @@ The overall goal for this project is to create a keyword-driven search tool that
 -Keyword Search:
    - Implemented a simple keyword search tool
    - Mapped user keywords to the closest game genre using the classifier
-   - Returned a list of games whose mebeddings are most similar to the user's input
+   - Returned a list of games whose embeddings are most similar to the user's input
 
 # Dataset
 The model is trained on a dataset of Steam games, including:
