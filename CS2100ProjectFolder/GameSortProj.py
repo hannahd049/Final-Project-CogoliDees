@@ -142,3 +142,12 @@ if __name__ == "__main__":
                 print("Description: (none available)")
 
             print("-" * 40)
+
+
+#blocked genres no nos
+predicted_genre = model.predict(user_input)
+
+if predicted_genre == "Sexual Content":
+    predicted_genre = "Unknown"
+
+print("Predicted genre:", predicted_genre)
