@@ -19,6 +19,11 @@ The overall goal for this project is to create a keyword-driven search tool that
 - A machine learning classifier predicts the primary genre to display
 - The system retrieves and displays games that match the predicted genre
 
+# How to interact with our model
+- First, load the model and folder into Visual Studio Code
+- Then, think of types of games you would like to search for
+- Lastly, search any keyword or description into the model's search input, and the model will match you with similar games.
+
 # Key Techniques:
 -Text Processing:
 - Combined multiple text fields into a single input string
@@ -43,7 +48,7 @@ The overall goal for this project is to create a keyword-driven search tool that
 -Keyword Search:
    - Implemented a simple keyword search tool
    - Mapped user keywords to the closest game genre using the classifier
-   - Returned a list of games whose mebeddings are most similar to the user's input
+   - Returned a list of games whose embeddings are most similar to the user's input
 
 # Dataset
 The model is trained on a dataset of Steam games, including:
