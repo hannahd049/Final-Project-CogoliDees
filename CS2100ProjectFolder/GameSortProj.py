@@ -1,13 +1,22 @@
 # Game Classification Project
+
+#imports needed for our project
 import pandas as pd
 import re
 import sklearn
 import torch
-from torch.utils.data import Dataset
-from transformers import BertTokenizer, BertForSequenceClassification
+from torch.utils.data import Dataset, DataLoader
+from transformers import BertTokenizer, BertForSequenceClassification, get_linear_schedule_with_warmup
+from torch.optim import AdamW
+from tqdm import tqdm
+import numpy as np
+
 
 # Load the dataset
 df = pd.read_csv("steam_games.csv")
+
+# Reduce dataset size to something trainable
+df = df.sample(n=9000, random_state=42)    #CHANGE to test and TRAIN
 
 
 # build text using columns that exist in OUR dataset
@@ -31,6 +40,11 @@ df["primary_genre"] = df["genre"].fillna("Unknown").apply(
 # Remove genres that appear only once
 genre_counts = df["primary_genre"].value_counts()
 df = df[df["primary_genre"].isin(genre_counts[genre_counts > 1].index)]
+
+# Create shared category object for genres
+genre_cat = df["primary_genre"].astype("category")
+df["primary_genre"] = genre_cat
+genre_mapping = dict(enumerate(genre_cat.cat.categories))
 
 # Train/test split
 train_df, test_df = sklearn.model_selection.train_test_split(
@@ -56,7 +70,7 @@ class GameDataSet(Dataset):
         self.df = df
         self.tokenizer = tokenizer
         self.texts = df["full_text"].tolist()
-        self.labels = df["primary_genre"].astype("category").cat.codes.tolist()
+        self.labels = self.df["primary_genre"].cat.codes.tolist()
 
     def __getitem__(self, idx):
         text = self.texts[idx]
@@ -109,14 +123,101 @@ def predict_genre(user_input):
         logits = outputs.logits
         predicted_genre_idx = torch.argmax(logits, dim=1).item()
 
-    return genre_mapping[predicted_genre_idx]
+    genre = genre_mapping[predicted_genre_idx]
+
+    # Block unwanted genres
+    blocked = {"Sexual Content", "Nudity", "Adult Only"}
+    if genre in blocked:
+        return "Unknown"
+
+    return genre
+
+#TRAINING CODE
+train_dataset = GameDataSet(train_df, tokenizer)
+train_loader = torch.utils.data.DataLoader(test_df, batch_size=16, shuffle=True)
+
+
+train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=16, shuffle=True)
+test_loader=torch.utils.data.DataLoader(GameDataSet(test_df, tokenizer), batch_size=16)
+
+#move to gpu
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model.to(device)
+
+#Optimizer and scheduler
+epochs=3
+optimizer = AdamW(model.parameters(), lr=2e-5)
+total_steps = len(train_loader) * epochs
+scheduler = get_linear_schedule_with_warmup(
+    optimizer,
+    num_warmup_steps=0,
+    num_training_steps=total_steps
+)
+
+#TRAING MODEL CODE
+def train_model():
+    model.train()
+    for epoch in range(epochs):
+        loop = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs}")
+        for batch in loop:
+            optimizer.zero_grad()
+            input_ids = batch["input_ids"].to(device)
+            attention_mask = batch["attention_mask"].to(device)
+            labels = batch["labels"].to(device)
+
+            outputs = model(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                labels=labels
+            )
+            loss = outputs.loss
+            loss.backward()
+            optimizer.step()
+            scheduler.step()
+
+            loop.set_postfix(loss=loss.item())
+        print("\n Training Complete :)")
+
+#validation accuracy code
+def evaluate_model():
+    model.eval()
+    correct = 0
+    total = 0
+
+    with torch.no_grad():
+        for batch in test_loader:
+            input_ids = batch["input_ids"].to(device)
+            attention_mask = batch["attention_mask"].to(device)
+            labels = batch["labels"].to(device)
+
+            outputs = model(
+                input_ids=input_ids,
+                attention_mask=attention_mask
+            )
+            logits = outputs.logits
+            predicted_genre_idx = torch.argmax(logits, dim=1)
+            correct += (predicted_genre_idx == labels).sum().item()
+            total += labels.size(0)
+
+    accuracy = correct / total
+    print(f"\nValidation Accuracy: {accuracy:.4f}")
+
+#start training and evaluating
+print("Starting training...")
+train_model()
+evaluate_model()
+print("Model ready!")
+
+model.save_pretrained("saved_model")
+tokenizer.save_pretrained("saved_model")
+print("Model saved!")
 
 # User interaction
 if __name__ == "__main__":
     print("\nModel ready. Type a keyword or description.")
 
     while True:
-        user_input = input("\nSearch (or 'quit'): ")
+        user_input = input("\nSearch for a game using keywords or description (or 'quit'): ")
 
         if user_input.lower() == "quit":
             break
@@ -131,13 +232,17 @@ if __name__ == "__main__":
         for _, row in matches.head(5).iterrows():
             print(f"Title: {row['name']}")
 
-            if "popular_tags" in row:
+            if pd.notna(row.get("popular_tags", None)):
                 print(f"Tags: {row['popular_tags']}")
 
-            if "desc_snippet" in row:
-                print(f"Description: {row['desc_snippet'][:200]}...")
-            elif "game_description" in row:
-                print(f"Description: {row['game_description'][:200]}...")
+            desc = None
+            if pd.notna(row.get("desc_snippet", None)):
+                desc = row["desc_snippet"]
+            elif pd.notna(row.get("game_description", None)):
+                desc = row["game_description"]
+
+            if desc:
+                print(f"Description: {desc[:200]}...")
             else:
                 print("Description: (none available)")
 
