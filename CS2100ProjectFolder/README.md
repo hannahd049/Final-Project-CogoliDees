@@ -11,7 +11,9 @@ Users can enter any keyword or short phrase, and the system will:
 - Return a list of matching games from the dataset
 - Display each game’s title, tags, and a short description
 For example, searching for “zombies” will surface games commonly associated with the Horror genre.
-
+# Research Question
+How accurately will the machine model classify video games into
+genres using user-inputted text features, tags, and descriptions? 
 # Goal
 The overall goal for this project is to create a keyword-driven search tool that helps users discover games by concept rather than by name or popularity. This makes it easier to explore genres, find similar titles, and understand how text-based features can influence classification. 
 # How it Works
