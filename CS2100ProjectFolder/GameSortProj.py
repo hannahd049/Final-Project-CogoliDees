@@ -1,23 +1,26 @@
-# Game Classification Project
-
 #imports needed for our project
 import pandas as pd
 import re
 import sklearn
 import torch
+import os
 from torch.utils.data import Dataset, DataLoader
 from transformers import BertTokenizer, BertForSequenceClassification, get_linear_schedule_with_warmup
 from torch.optim import AdamW
 from tqdm import tqdm
 import numpy as np
 
+# Configuration path
+Save_dir = "steam_bert_model"
+Mapping_file = os.path.join(Save_dir, "genre_mapping.pt")
 
 # Load the dataset
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 df = pd.read_csv("steam_games.csv")
 
 # Reduce dataset size to something trainable
-df = df.sample(n=9000, random_state=42)    #CHANGE to test and TRAIN
-
+df = df.sample(n=12000, random_state=42)    #CHANGE to test and TRAIN
 
 # build text using columns that exist in OUR dataset
 text_cols = [
@@ -46,23 +49,33 @@ genre_cat = df["primary_genre"].astype("category")
 df["primary_genre"] = genre_cat
 genre_mapping = dict(enumerate(genre_cat.cat.categories))
 
+# number of labels
+num_labels = df["primary_genre"].nunique()
+
 # Train/test split
 train_df, test_df = sklearn.model_selection.train_test_split(
-    df,
-    test_size=0.2,
-    random_state=42
+    df, test_size=0.2, random_state=42, stratify=df["primary_genre"]
 )
-# Tokenizer
-tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
 
-def process_data(texts):
-    return tokenizer(
-        list(texts),
-        padding="max_length",
-        max_length=260,
-        truncation=True,
-        return_tensors="pt"
+MUST_TRAIN = True
+
+# Check if model already exists
+if os.path.exists(Save_dir) and os.path.exists(Mapping_file):
+    print("\n--- Model found! Loading... ---")
+    model = BertForSequenceClassification.from_pretrained(Save_dir)
+    tokenizer = BertTokenizer.from_pretrained(Save_dir)
+    genre_mapping = torch.load(Mapping_file)
+    model.to(device)
+    model.eval()
+    MUST_TRAIN = False
+else:
+    print("\n--- Model not found! Starting training... ---")
+    tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+    model = BertForSequenceClassification.from_pretrained(
+        "bert-base-uncased",
+        num_labels=num_labels
     )
+    model.to(device)
 
 # Dataset Class
 class GameDataSet(Dataset):
@@ -91,16 +104,9 @@ class GameDataSet(Dataset):
         }
 
     def __len__(self):
-        return len(self.df)
+        return len(self.texts)
 
-# Model
-num_labels = df["primary_genre"].nunique()
-model = BertForSequenceClassification.from_pretrained(
-    "bert-base-uncased",
-    num_labels=num_labels
-)
-
-# Genre mapping
+# Genre mapping (ensure consistent)
 genre_mapping = dict(
     enumerate(df["primary_genre"].astype("category").cat.categories)
 )
@@ -118,6 +124,9 @@ def predict_genre(user_input):
         max_length=260
     )
 
+    inputs = {k: v.to(device) for k, v in inputs.items()}
+
+    model.eval()
     with torch.no_grad():
         outputs = model(**inputs)
         logits = outputs.logits
@@ -134,18 +143,17 @@ def predict_genre(user_input):
 
 #TRAINING CODE
 train_dataset = GameDataSet(train_df, tokenizer)
-train_loader = torch.utils.data.DataLoader(test_df, batch_size=16, shuffle=True)
-
+test_dataset = GameDataSet(test_df, tokenizer)
 
 train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=16, shuffle=True)
-test_loader=torch.utils.data.DataLoader(GameDataSet(test_df, tokenizer), batch_size=16)
+test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=16)
 
 #move to gpu
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model.to(device)
 
 #Optimizer and scheduler
-epochs=3
+epochs = 3
 optimizer = AdamW(model.parameters(), lr=2e-5)
 total_steps = len(train_loader) * epochs
 scheduler = get_linear_schedule_with_warmup(
@@ -176,7 +184,7 @@ def train_model():
             scheduler.step()
 
             loop.set_postfix(loss=loss.item())
-        print("\n Training Complete :)")
+    print("\n Training Complete :)")
 
 #validation accuracy code
 def evaluate_model():
@@ -203,14 +211,20 @@ def evaluate_model():
     print(f"\nValidation Accuracy: {accuracy:.4f}")
 
 #start training and evaluating
-print("Starting training...")
-train_model()
-evaluate_model()
-print("Model ready!")
+if MUST_TRAIN:
+    print("Starting training...")
+    train_model()
+    evaluate_model()
+    print("Model ready!")
 
-model.save_pretrained("saved_model")
-tokenizer.save_pretrained("saved_model")
-print("Model saved!")
+    if not os.path.exists(Save_dir):
+        os.makedirs(Save_dir)
+    model.save_pretrained(Save_dir)
+    tokenizer.save_pretrained(Save_dir)
+    torch.save(genre_mapping, Mapping_file)
+    print("model saved succesfully!")
+else:
+    print("Model already trained. Ready for predictions!")
 
 # User interaction
 if __name__ == "__main__":
